@@ -111,6 +111,7 @@ const ruleProviders = {
     "GlobalMedia":  { type: "http", behavior: "classical", format: "yaml", interval: 86400, url: `${RULES_BASE}/GlobalMedia/GlobalMedia_Classical_No_Resolve.yaml`,          path: "./ruleset/GlobalMedia.yaml" },
     "Speedtest":    { type: "http", behavior: "classical", format: "yaml", interval: 86400, url: `${RULES_BASE}/Speedtest/Speedtest_No_Resolve.yaml`,                       path: "./ruleset/Speedtest.yaml" },
     "Apple":        { type: "http", behavior: "classical", format: "yaml", interval: 86400, url: `${RULES_BASE}/Apple/Apple_Classical_No_Resolve.yaml`,                      path: "./ruleset/Apple.yaml" },
+    "Mail":         { type: "http", behavior: "classical", format: "yaml", interval: 86400, url: `${RULES_BASE}/Mail/Mail_No_Resolve.yaml`,                                path: "./ruleset/Mail.yaml" },
 };
 
 // ====== 规则（参考 clash.yaml 顺序，从上到下匹配）======
@@ -134,6 +135,8 @@ const rules = [
     "RULE-SET,Spotify,Spotify",
     "RULE-SET,TikTok,TikTok",
     "RULE-SET,GlobalMedia,GlobalMedia",
+    // 邮件（SMTP/IMAP 不走代理）
+    "RULE-SET,Mail,DIRECT",
     // 科技巨头
     "RULE-SET,Google,Google",
     "RULE-SET,Microsoft,Microsoft",
