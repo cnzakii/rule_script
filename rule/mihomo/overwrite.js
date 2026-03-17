@@ -11,6 +11,11 @@ const ORZ3 = "https://gcore.jsdelivr.net/gh/Orz-3/mini@master/Color";
 const VALID_GROUP_TYPES = ["select", "url-test", "load-balance"];
 const TEST_URL = "https://cp.cloudflare.com/generate_204";
 
+// ====== 规则集来源 ======
+const DUSTIN = "https://raw.githubusercontent.com/DustinWin/ruleset_geodata/mihomo-ruleset";
+const META_LITE = "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo-lite/geosite";
+const META_FULL = "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite";
+
 // ====== 地区元数据 ======
 const regions = [
     { name: "香港",     pattern: "香港|港|HK|Hong Kong|HongKong|🇭🇰",                icon: `${ORZ3}/HK.png` },
@@ -92,59 +97,195 @@ function buildRegionGroups(proxies, stats, minCount, defaultType, overrideMap) {
     return groups;
 }
 
-// ====== 规则集来源（blackmatrix7）======
-const RULES_BASE = "https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Clash";
-
-const ruleProviders = {
-    "Advertising":  { type: "http", behavior: "classical", format: "yaml", interval: 86400, url: `${RULES_BASE}/AdvertisingLite/AdvertisingLite_Classical_No_Resolve.yaml`, path: "./ruleset/Advertising.yaml" },
-    "OpenAI":       { type: "http", behavior: "classical", format: "yaml", interval: 86400, url: `${RULES_BASE}/OpenAI/OpenAI_No_Resolve.yaml`,                             path: "./ruleset/OpenAI.yaml" },
-    "Claude":       { type: "http", behavior: "classical", format: "yaml", interval: 86400, url: `${RULES_BASE}/Claude/Claude_No_Resolve.yaml`,                             path: "./ruleset/Claude.yaml" },
-    "Telegram":     { type: "http", behavior: "classical", format: "yaml", interval: 86400, url: `${RULES_BASE}/Telegram/Telegram_No_Resolve.yaml`,                         path: "./ruleset/Telegram.yaml" },
-    "YouTube":      { type: "http", behavior: "classical", format: "yaml", interval: 86400, url: `${RULES_BASE}/YouTube/YouTube_No_Resolve.yaml`,                           path: "./ruleset/YouTube.yaml" },
-    "Google":       { type: "http", behavior: "classical", format: "yaml", interval: 86400, url: `${RULES_BASE}/Google/Google_No_Resolve.yaml`,                             path: "./ruleset/Google.yaml" },
-    "Microsoft":    { type: "http", behavior: "classical", format: "yaml", interval: 86400, url: `${RULES_BASE}/Microsoft/Microsoft_No_Resolve.yaml`,                       path: "./ruleset/Microsoft.yaml" },
-    "Netflix":      { type: "http", behavior: "classical", format: "yaml", interval: 86400, url: `${RULES_BASE}/Netflix/Netflix_Classical_No_Resolve.yaml`,                  path: "./ruleset/Netflix.yaml" },
-    "Spotify":      { type: "http", behavior: "classical", format: "yaml", interval: 86400, url: `${RULES_BASE}/Spotify/Spotify_No_Resolve.yaml`,                           path: "./ruleset/Spotify.yaml" },
-    "TikTok":       { type: "http", behavior: "classical", format: "yaml", interval: 86400, url: `${RULES_BASE}/TikTok/TikTok_No_Resolve.yaml`,                             path: "./ruleset/TikTok.yaml" },
-    "Steam":        { type: "http", behavior: "classical", format: "yaml", interval: 86400, url: `${RULES_BASE}/Steam/Steam_No_Resolve.yaml`,                               path: "./ruleset/Steam.yaml" },
-    "Game":         { type: "http", behavior: "classical", format: "yaml", interval: 86400, url: `${RULES_BASE}/Game/Game_No_Resolve.yaml`,                                 path: "./ruleset/Game.yaml" },
-    "GlobalMedia":  { type: "http", behavior: "classical", format: "yaml", interval: 86400, url: `${RULES_BASE}/GlobalMedia/GlobalMedia_Classical_No_Resolve.yaml`,          path: "./ruleset/GlobalMedia.yaml" },
-    "Speedtest":    { type: "http", behavior: "classical", format: "yaml", interval: 86400, url: `${RULES_BASE}/Speedtest/Speedtest_No_Resolve.yaml`,                       path: "./ruleset/Speedtest.yaml" },
-    "Apple":        { type: "http", behavior: "classical", format: "yaml", interval: 86400, url: `${RULES_BASE}/Apple/Apple_Classical_No_Resolve.yaml`,                      path: "./ruleset/Apple.yaml" },
-    "Mail":         { type: "http", behavior: "classical", format: "yaml", interval: 86400, url: `${RULES_BASE}/Mail/Mail_No_Resolve.yaml`,                                path: "./ruleset/Mail.yaml" },
+// ====== DNS 配置 ======
+const DNS_CONFIG = {
+    "enable": true,
+    "prefer-h3": true,
+    "ipv6": false,
+    "enhanced-mode": "fake-ip",
+    "fake-ip-range": "198.18.0.1/16",
+    "respect-rules": true,
+    "default-nameserver": [
+        "223.5.5.5",
+        "119.29.29.29",
+    ],
+    "fake-ip-filter": [
+        // Tailscale
+        "+.tailscale.com",
+        "+.tailscale.io",
+        "+.ts.net",
+        // ZeroTier
+        "+.zerotier.com",
+        "+.zerotierstatic.com",
+        // WireGuard
+        "+.wireguard.com",
+        // STUN
+        "+.stun.*.*",
+        "+.stun.*.*.*",
+        "+.stun.*.*.*.*",
+        "+.stun.*.*.*.*.*",
+        "stun.*.*",
+        "stun.*.*.*",
+        // NTP
+        "+.ntp.org",
+        "time.*.com",
+        "time.*.gov",
+        "time.*.apple.com",
+        "time*.cloud.tencent.com",
+        "ntp.*.com",
+        // 连通性检测
+        "+.msftconnecttest.com",
+        "+.msftncsi.com",
+        "localhost.ptlogin2.qq.com",
+        "localhost.sec.qq.com",
+        "+.captive.apple.com",
+        "connectivitycheck.gstatic.com",
+        "detectportal.firefox.com",
+        // 局域网/mDNS
+        "+.local",
+        "+.lan",
+        "+.home.arpa",
+        // 游戏主机
+        "+.srv.nintendo.net",
+        "*.n.n.srv.nintendo.net",
+        "+.stun.playstation.net",
+        "xbox.*.microsoft.com",
+        "+.xboxlive.com",
+        "+.battlenet.com.cn",
+        "+.battlenet.com",
+        // 其他
+        "+.music.163.com",
+        "+.126.net",
+        "+.pool.ntp.org",
+        "+.localhost",
+    ],
+    "nameserver": [
+        "https://dns.google/dns-query",
+        "https://cloudflare-dns.com/dns-query",
+    ],
+    "direct-nameserver": [
+        "https://dns.alidns.com/dns-query",
+        "https://doh.pub/dns-query",
+    ],
+    "proxy-server-nameserver": [
+        "https://dns.alidns.com/dns-query",
+        "https://doh.pub/dns-query",
+    ],
+    "nameserver-policy": {
+        "geosite:private,cn": [
+            "https://dns.alidns.com/dns-query",
+            "https://doh.pub/dns-query",
+        ],
+    },
 };
 
-// ====== 规则（参考 clash.yaml 顺序，从上到下匹配）======
+// ====== Sniffer 配置 ======
+const SNIFFER_CONFIG = {
+    "enable": true,
+    "force-dns-mapping": true,
+    "parse-pure-ip": true,
+    "override-destination": true,
+    "sniff": {
+        "HTTP": {
+            "ports": [80, "8080-8880"],
+            "override-destination": true,
+        },
+        "TLS": {
+            "ports": [443, 8443],
+        },
+        "QUIC": {
+            "ports": [443, 8443],
+        },
+    },
+    "skip-domain": [
+        "+.push.apple.com",
+        "+.home.mi.com",
+    ],
+};
+
+// ====== VPN 内网直连规则（规则集不覆盖的部分）======
+const DIRECT_RULES = [
+    // Tailscale CGNAT 网段（节点间 P2P 通信）
+    "IP-CIDR,100.64.0.0/10,DIRECT,no-resolve",
+];
+
+// ====== 规则集提供者 ======
+function mrsProvider(url, behavior) {
+    return { type: "http", behavior, format: "mrs", interval: 86400, url };
+}
+
+const ruleProviders = {
+    // —— DustinWin（主力源）——
+    "ads":            mrsProvider(`${DUSTIN}/ads.mrs`,           "domain"),
+    "private":        mrsProvider(`${DUSTIN}/private.mrs`,       "domain"),
+    "private-ip":     mrsProvider(`${DUSTIN}/privateip.mrs`,     "ipcidr"),
+    "ai":             mrsProvider(`${DUSTIN}/ai.mrs`,            "domain"),
+    "telegram-ip":    mrsProvider(`${DUSTIN}/telegramip.mrs`,    "ipcidr"),
+    "youtube":        mrsProvider(`${DUSTIN}/youtube.mrs`,       "domain"),
+    "netflix":        mrsProvider(`${DUSTIN}/netflix.mrs`,       "domain"),
+    "netflix-ip":     mrsProvider(`${DUSTIN}/netflixip.mrs`,     "ipcidr"),
+    "spotify":        mrsProvider(`${DUSTIN}/spotify.mrs`,       "domain"),
+    "tiktok":         mrsProvider(`${DUSTIN}/tiktok.mrs`,        "domain"),
+    "games-cn":       mrsProvider(`${DUSTIN}/games-cn.mrs`,      "domain"),
+    "games":          mrsProvider(`${DUSTIN}/games.mrs`,         "domain"),
+    "media":          mrsProvider(`${DUSTIN}/media.mrs`,         "domain"),
+    "media-ip":       mrsProvider(`${DUSTIN}/mediaip.mrs`,       "ipcidr"),
+    "networktest":    mrsProvider(`${DUSTIN}/networktest.mrs`,   "domain"),
+    "google-cn":      mrsProvider(`${DUSTIN}/google-cn.mrs`,     "domain"),
+    "microsoft-cn":   mrsProvider(`${DUSTIN}/microsoft-cn.mrs`,  "domain"),
+    "apple-cn":       mrsProvider(`${DUSTIN}/apple-cn.mrs`,      "domain"),
+    "cn":             mrsProvider(`${DUSTIN}/cn.mrs`,            "domain"),
+    "cn-ip":          mrsProvider(`${DUSTIN}/cnip.mrs`,          "ipcidr"),
+    "proxy":          mrsProvider(`${DUSTIN}/proxy.mrs`,         "domain"),
+    // —— MetaCubeX（DustinWin 无单独拆分的服务）——
+    "openai":         mrsProvider(`${META_LITE}/openai.mrs`,     "domain"),
+    "anthropic":      mrsProvider(`${META_FULL}/anthropic.mrs`,  "domain"),
+    "telegram":       mrsProvider(`${META_LITE}/telegram.mrs`,   "domain"),
+    "google":         mrsProvider(`${META_LITE}/google.mrs`,     "domain"),
+    "microsoft":      mrsProvider(`${META_LITE}/microsoft.mrs`,  "domain"),
+    "apple":          mrsProvider(`${META_LITE}/apple.mrs`,      "domain"),
+};
+
+// ====== 规则（从上到下匹配）======
 const rules = [
-    // 广告拦截（最高优先）
-    "RULE-SET,Advertising,广告拦截",
+    // 私有网络直连
+    "RULE-SET,private,DIRECT",
+    "RULE-SET,private-ip,DIRECT,no-resolve",
+    // 广告拦截
+    "RULE-SET,ads,广告拦截",
     // AI 服务（细分优先于通用）
-    "RULE-SET,OpenAI,OpenAI",
-    "RULE-SET,Claude,Anthropic",
-    "GEOSITE,category-ai-!cn,AI",
+    "RULE-SET,openai,OpenAI",
+    "RULE-SET,anthropic,Anthropic",
+    "RULE-SET,ai,AI",
     // 通讯
-    "RULE-SET,Telegram,Telegram",
+    "RULE-SET,telegram,Telegram",
+    "RULE-SET,telegram-ip,Telegram,no-resolve",
     // 测速
-    "RULE-SET,Speedtest,Speedtest",
-    // 游戏（Steam 优先于通用 Game）
-    "RULE-SET,Steam,Steam",
-    "RULE-SET,Game,Game",
-    // 流媒体（细分优先于通用 GlobalMedia）
-    "RULE-SET,YouTube,YouTube",
-    "RULE-SET,Netflix,Netflix",
-    "RULE-SET,Spotify,Spotify",
-    "RULE-SET,TikTok,TikTok",
-    "RULE-SET,GlobalMedia,GlobalMedia",
-    // 邮件（SMTP/IMAP 不走代理）
-    "RULE-SET,Mail,DIRECT",
-    // 科技巨头
-    "RULE-SET,Google,Google",
-    "RULE-SET,Microsoft,Microsoft",
-    "RULE-SET,Apple,Apple",
+    "RULE-SET,networktest,Speedtest",
+    // 游戏（国服直连优先于代理）
+    "RULE-SET,games-cn,DIRECT",
+    "RULE-SET,games,游戏",
+    // 流媒体（细分优先于通用）
+    "RULE-SET,youtube,YouTube",
+    "RULE-SET,netflix,Netflix",
+    "RULE-SET,netflix-ip,Netflix,no-resolve",
+    "RULE-SET,spotify,Spotify",
+    "RULE-SET,tiktok,TikTok",
+    "RULE-SET,media,GlobalMedia",
+    "RULE-SET,media-ip,GlobalMedia,no-resolve",
+    // 科技巨头（国内直连优先于代理）
+    "RULE-SET,google-cn,DIRECT",
+    "RULE-SET,google,Google",
+    "RULE-SET,microsoft-cn,DIRECT",
+    "RULE-SET,microsoft,Microsoft",
+    "RULE-SET,apple-cn,DIRECT",
+    "RULE-SET,apple,Apple",
     // 国内流量
-    "GEOSITE,cn,国内网站",
-    "GEOIP,cn,国内网站,no-resolve",
-    // 兜底
+    "RULE-SET,cn,国内网站",
+    "RULE-SET,cn-ip,国内网站,no-resolve",
+    // 代理兜底
+    "RULE-SET,proxy,Final",
+    // 最终兜底
     "MATCH,Final",
 ];
 
@@ -159,15 +300,22 @@ function main(config) {
     const regionGroups = buildRegionGroups(proxies, countByRegion(proxies), minCount, groupType, overrideMap);
     const regionNames = regionGroups.map(g => g.name);
 
-    // 全局配置
+    // 内核通用优化（不含端口/外部控制器等客户端特定设置）
     Object.assign(config, {
-        "port": 7890,
-        "socks-port": 7891,
-        "allow-lan": true,
         "mode": "rule",
         "log-level": "info",
-        "external-controller": "127.0.0.1:9090",
+        "ipv6": false,
+        "unified-delay": true,
+        "tcp-concurrent": true,
+        "find-process-mode": "strict",
+        "global-client-fingerprint": "chrome",
     });
+
+    // DNS
+    config["dns"] = DNS_CONFIG;
+
+    // Sniffer
+    config["sniffer"] = SNIFFER_CONFIG;
 
     const proxyFirst  = ["代理选择", ...regionNames, "手动选择", "DIRECT"];
     const directFirst = ["DIRECT", "代理选择", ...regionNames, "手动选择"];
@@ -184,10 +332,9 @@ function main(config) {
         { name: "Netflix",     icon: `${ORZ3}/Netflix.png`,    proxies: proxyFirst },
         { name: "Spotify",     icon: `${ORZ3}/Spotify.png`,    proxies: proxyFirst },
         { name: "TikTok",      icon: `${ORZ3}/TikTok.png`,    proxies: proxyFirst },
-        { name: "Steam",       icon: `${ORZ3}/Steam.png`,      proxies: proxyFirst },
-        { name: "Game",        icon: `${ORZ3}/GAME.png`,       proxies: proxyFirst },
+        { name: "游戏",        icon: `${ORZ3}/GAME.png`,       proxies: proxyFirst },
         { name: "GlobalMedia", icon: `${ORZ3}/Streaming.png`,  proxies: proxyFirst },
-        { name: "Speedtest",   icon: `${ORZ3}/Speedtest.png`,  proxies: proxyFirst },
+        { name: "Speedtest",   icon: `${ORZ3}/Speedtest.png`,  proxies: directFirst },
         { name: "Apple",       icon: `${ORZ3}/Apple.png`,      proxies: directFirst },
         { name: "广告拦截",     icon: `${ORZ3}/Adblock.png`,    proxies: ["REJECT", "DIRECT"] },
         { name: "国内网站",     icon: `${ORZ3}/China.png`,      proxies: directFirst },
@@ -207,7 +354,7 @@ function main(config) {
 
     // rule-providers & rules
     config["rule-providers"] = ruleProviders;
-    config["rules"] = rules;
+    config["rules"] = [...DIRECT_RULES, ...rules];
 
     return config;
 }
