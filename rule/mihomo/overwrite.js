@@ -9,6 +9,7 @@
 
 const ORZ3 = "https://gcore.jsdelivr.net/gh/Orz-3/mini@master/Color";
 const VALID_GROUP_TYPES = ["select", "url-test", "load-balance"];
+const TLS_FINGERPRINT_TYPES = new Set(["vmess", "vless", "trojan", "anytls"]);
 const TEST_URL = "https://cp.cloudflare.com/generate_204";
 
 // ====== 规则集来源 ======
@@ -32,10 +33,11 @@ const regions = [
     { name: "澳大利亚", pattern: "澳洲|澳大利亚|AU|Australia|🇦🇺",                     icon: `${ORZ3}/AU.png` },
     { name: "俄罗斯",   pattern: "俄罗斯|俄|RU|Russia|🇷🇺",                            icon: `${ORZ3}/RU.png` },
     { name: "土耳其",   pattern: "土耳其|TR|Turkey|Türkiye|🇹🇷",                        icon: `${ORZ3}/TR.png` },
-];
+].map(region => ({ ...region, regex: new RegExp(region.pattern) }));
 
 // ====== 工具函数 ======
 const toInt = (v, d = 0) => { const n = parseInt(v, 10); return isNaN(n) ? d : n; };
+const clone = (value) => JSON.parse(JSON.stringify(value));
 
 /** 解析 groupOverride 参数，返回 { 分组名: 类型 } */
 function parseGroupOverride(raw) {
@@ -55,43 +57,70 @@ function urlTestOpts() {
 
 /** 统计各地区节点数，返回有节点的地区 */
 function countByRegion(proxies) {
-    return regions.reduce((acc, r) => {
-        const regex = new RegExp(r.pattern);
-        const count = proxies.filter(p => regex.test(p.name || "")).length;
-        if (count > 0) acc.push({ ...r, count });
-        return acc;
-    }, []);
+    const counts = regions.map(region => ({ ...region, count: 0 }));
+    let unmatchedCount = 0;
+
+    for (const proxy of proxies) {
+        const name = proxy.name || "";
+        let matched = false;
+
+        for (const region of counts) {
+            if (!region.regex.test(name)) continue;
+            region.count += 1;
+            matched = true;
+        }
+
+        if (!matched) unmatchedCount += 1;
+    }
+
+    return {
+        stats: counts.filter(region => region.count > 0),
+        unmatchedCount,
+    };
 }
 
 /** 创建单个地区/筛选分组，type 由 override 或 defaultType 决定 */
-function makeGroup(name, filterOrExclude, defaultType, overrideMap, isExclude, icon) {
+function makeGroup({ name, match, defaultType, overrideMap, icon, exclude = false }) {
     const type = overrideMap[name] || defaultType;
-    const g = { name, type, "include-all": true };
-    if (icon) g.icon = icon;
-    if (isExclude) g["exclude-filter"] = filterOrExclude;
-    else g.filter = filterOrExclude;
-    if (type === "url-test") Object.assign(g, urlTestOpts());
-    return g;
+    const group = { name, type, "include-all": true };
+    if (icon) group.icon = icon;
+    if (exclude) group["exclude-filter"] = match;
+    else group.filter = match;
+    if (type === "url-test") Object.assign(group, urlTestOpts());
+    return group;
 }
 
 /** 构建全部地区 + 特殊筛选分组 */
-function buildRegionGroups(proxies, stats, minCount, defaultType, overrideMap) {
+function buildRegionGroups(stats, unmatchedCount, minCount, defaultType, overrideMap) {
     const groups = [];
     const keptPatterns = [];
+    let otherCount = unmatchedCount;
 
-    for (const r of stats) {
-        if (r.count >= minCount) {
-            groups.push(makeGroup(r.name, r.pattern, defaultType, overrideMap, false, r.icon));
-            keptPatterns.push(r.pattern);
+    for (const region of stats) {
+        if (region.count >= minCount) {
+            groups.push(makeGroup({
+                name: region.name,
+                match: region.pattern,
+                defaultType,
+                overrideMap,
+                icon: region.icon,
+            }));
+            keptPatterns.push(region.pattern);
+            continue;
         }
+
+        otherCount += region.count;
     }
 
-    // 其他地区
-    if (keptPatterns.length > 0) {
-        const keptRe = new RegExp(keptPatterns.join("|"));
-        if (proxies.some(p => !keptRe.test(p.name || ""))) {
-            groups.push(makeGroup("其他地区", keptPatterns.join("|"), defaultType, overrideMap, true, `${ORZ3}/UN.png`));
-        }
+    if (otherCount > 0) {
+        groups.push(makeGroup({
+            name: "其他地区",
+            match: keptPatterns.join("|"),
+            defaultType,
+            overrideMap,
+            icon: `${ORZ3}/UN.png`,
+            exclude: keptPatterns.length > 0,
+        }));
     }
 
     return groups;
@@ -109,55 +138,54 @@ const DNS_CONFIG = {
         "223.5.5.5",
         "119.29.29.29",
     ],
+    "fake-ip-filter-mode": "rule",
     "fake-ip-filter": [
-        // Tailscale
-        "+.tailscale.com",
-        "+.tailscale.io",
-        "+.ts.net",
-        // ZeroTier
-        "+.zerotier.com",
-        "+.zerotierstatic.com",
-        // WireGuard
-        "+.wireguard.com",
+        // 配置源：大陆域名返回真实 IP
+        "RULE-SET,cn,real-ip",
+        "GEOSITE,private,real-ip",
+        // Tailscale / ZeroTier / WireGuard
+        "DOMAIN-SUFFIX,tailscale.com,real-ip",
+        "DOMAIN-SUFFIX,tailscale.io,real-ip",
+        "DOMAIN-SUFFIX,ts.net,real-ip",
+        "DOMAIN-SUFFIX,zerotier.com,real-ip",
+        "DOMAIN-SUFFIX,zerotierstatic.com,real-ip",
+        "DOMAIN-SUFFIX,wireguard.com,real-ip",
         // STUN
-        "+.stun.*.*",
-        "+.stun.*.*.*",
-        "+.stun.*.*.*.*",
-        "+.stun.*.*.*.*.*",
-        "stun.*.*",
-        "stun.*.*.*",
+        "DOMAIN-REGEX,^(?:.+\\.)?stun\\..+\\..+$,real-ip",
         // NTP
-        "+.ntp.org",
-        "time.*.com",
-        "time.*.gov",
-        "time.*.apple.com",
-        "time*.cloud.tencent.com",
-        "ntp.*.com",
+        "DOMAIN-SUFFIX,ntp.org,real-ip",
+        "DOMAIN-REGEX,^time\\..+\\.com$,real-ip",
+        "DOMAIN-REGEX,^time\\..+\\.gov$,real-ip",
+        "DOMAIN-REGEX,^time\\..+\\.apple\\.com$,real-ip",
+        "DOMAIN-REGEX,^time[^.]*\\.cloud\\.tencent\\.com$,real-ip",
+        "DOMAIN-REGEX,^ntp\\..+\\.com$,real-ip",
         // 连通性检测
-        "+.msftconnecttest.com",
-        "+.msftncsi.com",
-        "localhost.ptlogin2.qq.com",
-        "localhost.sec.qq.com",
-        "+.captive.apple.com",
-        "connectivitycheck.gstatic.com",
-        "detectportal.firefox.com",
-        // 局域网/mDNS
-        "+.local",
-        "+.lan",
-        "+.home.arpa",
+        "DOMAIN-SUFFIX,msftconnecttest.com,real-ip",
+        "DOMAIN-SUFFIX,msftncsi.com,real-ip",
+        "DOMAIN,localhost.ptlogin2.qq.com,real-ip",
+        "DOMAIN,localhost.sec.qq.com,real-ip",
+        "DOMAIN-SUFFIX,captive.apple.com,real-ip",
+        "DOMAIN,connectivitycheck.gstatic.com,real-ip",
+        "DOMAIN,detectportal.firefox.com,real-ip",
+        // 局域网 / mDNS
+        "DOMAIN-SUFFIX,local,real-ip",
+        "DOMAIN-SUFFIX,lan,real-ip",
+        "DOMAIN-SUFFIX,home.arpa,real-ip",
+        "DOMAIN-SUFFIX,localhost,real-ip",
         // 游戏主机
-        "+.srv.nintendo.net",
-        "*.n.n.srv.nintendo.net",
-        "+.stun.playstation.net",
-        "xbox.*.microsoft.com",
-        "+.xboxlive.com",
-        "+.battlenet.com.cn",
-        "+.battlenet.com",
+        "DOMAIN-SUFFIX,srv.nintendo.net,real-ip",
+        "DOMAIN-REGEX,^.+\\.n\\.n\\.srv\\.nintendo\\.net$,real-ip",
+        "DOMAIN-SUFFIX,stun.playstation.net,real-ip",
+        "DOMAIN-REGEX,^xbox\\..+\\.microsoft\\.com$,real-ip",
+        "DOMAIN-SUFFIX,xboxlive.com,real-ip",
+        "DOMAIN-SUFFIX,battlenet.com.cn,real-ip",
+        "DOMAIN-SUFFIX,battlenet.com,real-ip",
         // 其他
-        "+.music.163.com",
-        "+.126.net",
-        "+.pool.ntp.org",
-        "+.localhost",
+        "DOMAIN-SUFFIX,music.163.com,real-ip",
+        "DOMAIN-SUFFIX,126.net,real-ip",
+        "DOMAIN-SUFFIX,pool.ntp.org,real-ip",
+        // 兜底：其余域名继续使用 fake-ip
+        "MATCH,fake-ip",
     ],
     "nameserver": [
         "https://dns.google/dns-query",
@@ -290,6 +318,14 @@ const rules = [
 ];
 
 // ====== 主函数 ======
+function applyClientFingerprint(proxies, fingerprint = "chrome") {
+    for (const proxy of proxies) {
+        if (!proxy || !TLS_FINGERPRINT_TYPES.has(String(proxy.type || "").toLowerCase())) continue;
+        if (proxy["client-fingerprint"]) continue;
+        proxy["client-fingerprint"] = fingerprint;
+    }
+}
+
 function main(config) {
     const args = typeof $arguments !== "undefined" ? $arguments : {};
     const minCount    = toInt(args.minCount, 0);
@@ -297,7 +333,8 @@ function main(config) {
     const overrideMap = parseGroupOverride(args.groupOverride);
 
     const proxies = config.proxies || [];
-    const regionGroups = buildRegionGroups(proxies, countByRegion(proxies), minCount, groupType, overrideMap);
+    const { stats, unmatchedCount } = countByRegion(proxies);
+    const regionGroups = buildRegionGroups(stats, unmatchedCount, minCount, groupType, overrideMap);
     const regionNames = regionGroups.map(g => g.name);
 
     // 内核通用优化（不含端口/外部控制器等客户端特定设置）
@@ -308,14 +345,15 @@ function main(config) {
         "unified-delay": true,
         "tcp-concurrent": true,
         "find-process-mode": "strict",
-        "global-client-fingerprint": "chrome",
     });
 
+    applyClientFingerprint(proxies);
+
     // DNS
-    config["dns"] = DNS_CONFIG;
+    config["dns"] = clone(DNS_CONFIG);
 
     // Sniffer
-    config["sniffer"] = SNIFFER_CONFIG;
+    config["sniffer"] = clone(SNIFFER_CONFIG);
 
     const proxyFirst  = ["代理选择", ...regionNames, "手动选择", "DIRECT"];
     const directFirst = ["DIRECT", "代理选择", ...regionNames, "手动选择"];
