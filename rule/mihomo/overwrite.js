@@ -8,6 +8,8 @@
  */
 
 const ORZ3 = "https://gcore.jsdelivr.net/gh/Orz-3/mini@master/Color";
+const EDC_FILTER = "https://raw.githubusercontent.com/erdongchanyo/icon/main/Policy-Filter";
+const EDC_COUNTRY = "https://raw.githubusercontent.com/erdongchanyo/icon/main/Policy-Country";
 const VALID_GROUP_TYPES = ["select", "url-test", "load-balance"];
 const TLS_FINGERPRINT_TYPES = new Set(["vmess", "vless", "trojan", "anytls"]);
 const TEST_URL = "https://cp.cloudflare.com/generate_204";
@@ -19,20 +21,20 @@ const META_FULL = "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/me
 
 // ====== 地区元数据 ======
 const regions = [
-    { name: "香港",     pattern: "香港|港|HK|Hong Kong|HongKong|🇭🇰",                icon: `${ORZ3}/HK.png` },
-    { name: "台湾",     pattern: "台|新北|彰化|TW|Taiwan|🇹🇼|🇨🇳",                    icon: `${ORZ3}/CN.png` },
-    { name: "新加坡",   pattern: "新加坡|坡|狮城|SG|Singapore|🇸🇬",                    icon: `${ORZ3}/SG.png` },
-    { name: "日本",     pattern: "日本|川日|东京|大阪|泉日|埼玉|沪日|深日|JP|Japan|🇯🇵", icon: `${ORZ3}/JP.png` },
-    { name: "韩国",     pattern: "KR|Korea|KOR|首尔|韩|韓|🇰🇷",                        icon: `${ORZ3}/KR.png` },
-    { name: "美国",     pattern: "美国|美|US|United States|🇺🇸",                        icon: `${ORZ3}/US.png` },
-    { name: "加拿大",   pattern: "加拿大|Canada|CA|🇨🇦",                                icon: `${ORZ3}/CA.png` },
-    { name: "英国",     pattern: "英国|United Kingdom|UK|伦敦|London|🇬🇧",              icon: `${ORZ3}/UK.png` },
-    { name: "法国",     pattern: "法国|法|FR|France|🇫🇷",                               icon: `${ORZ3}/FR.png` },
-    { name: "德国",     pattern: "德国|德|DE|Germany|🇩🇪",                              icon: `${ORZ3}/DE.png` },
+    { name: "香港",     pattern: "香港|港|HK|Hong Kong|HongKong|🇭🇰",                icon: `${EDC_COUNTRY}/HK02.png` },
+    { name: "台湾",     pattern: "台|新北|彰化|TW|Taiwan|🇹🇼|🇨🇳",                    icon: `${EDC_COUNTRY}/CN.png` },
+    { name: "新加坡",   pattern: "新加坡|坡|狮城|SG|Singapore|🇸🇬",                    icon: `${EDC_COUNTRY}/SG.png` },
+    { name: "日本",     pattern: "日本|川日|东京|大阪|泉日|埼玉|沪日|深日|JP|Japan|🇯🇵", icon: `${EDC_COUNTRY}/JP.png` },
+    { name: "韩国",     pattern: "KR|Korea|KOR|首尔|韩|韓|🇰🇷",                        icon: `${EDC_COUNTRY}/KR.png` },
+    { name: "美国",     pattern: "美国|美|US|United States|🇺🇸",                        icon: `${EDC_COUNTRY}/US.png` },
+    { name: "加拿大",   pattern: "加拿大|Canada|CA|🇨🇦",                                icon: `${EDC_COUNTRY}/CA.png` },
+    { name: "英国",     pattern: "英国|United Kingdom|UK|伦敦|London|🇬🇧",              icon: `${EDC_COUNTRY}/UK.png` },
+    { name: "法国",     pattern: "法国|法|FR|France|🇫🇷",                               icon: `${EDC_COUNTRY}/FR.png` },
+    { name: "德国",     pattern: "德国|德|DE|Germany|🇩🇪",                              icon: `${EDC_COUNTRY}/DE.png` },
     { name: "荷兰",     pattern: "荷兰|NL|Netherlands|🇳🇱",                             icon: `${ORZ3}/NL.png` },
-    { name: "澳大利亚", pattern: "澳洲|澳大利亚|AU|Australia|🇦🇺",                     icon: `${ORZ3}/AU.png` },
-    { name: "俄罗斯",   pattern: "俄罗斯|俄|RU|Russia|🇷🇺",                            icon: `${ORZ3}/RU.png` },
-    { name: "土耳其",   pattern: "土耳其|TR|Turkey|Türkiye|🇹🇷",                        icon: `${ORZ3}/TR.png` },
+    { name: "澳大利亚", pattern: "澳洲|澳大利亚|AU|Australia|🇦🇺",                     icon: `${EDC_COUNTRY}/AU.png` },
+    { name: "俄罗斯",   pattern: "俄罗斯|俄|RU|Russia|🇷🇺",                            icon: `${EDC_COUNTRY}/RU.png` },
+    { name: "土耳其",   pattern: "土耳其|TR|Turkey|Türkiye|🇹🇷",                        icon: `${EDC_COUNTRY}/TR.png` },
 ].map(region => ({ ...region, regex: new RegExp(region.pattern) }));
 
 // ====== 工具函数 ======
@@ -118,7 +120,7 @@ function buildRegionGroups(stats, unmatchedCount, minCount, defaultType, overrid
             match: keptPatterns.join("|"),
             defaultType,
             overrideMap,
-            icon: `${ORZ3}/UN.png`,
+            icon: `${EDC_FILTER}/Outside.png`,
             exclude: keptPatterns.length > 0,
         }));
     }
@@ -360,29 +362,30 @@ function main(config) {
 
     // 服务分组
     const serviceGroups = [
-        { name: "OpenAI",      icon: "https://raw.githubusercontent.com/cnzakii/rule_script/main/icon/openai.png",  proxies: proxyFirst },
-        { name: "Anthropic",   icon: "https://raw.githubusercontent.com/cnzakii/rule_script/main/icon/claude.png",  proxies: proxyFirst },
-        { name: "AI",          icon: `${ORZ3}/OpenAI.png`,     proxies: proxyFirst },
-        { name: "Telegram",    icon: `${ORZ3}/Telegram.png`,   proxies: proxyFirst },
-        { name: "YouTube",     icon: `${ORZ3}/YouTube.png`,    proxies: proxyFirst },
-        { name: "Google",      icon: `${ORZ3}/Google.png`,     proxies: proxyFirst },
-        { name: "Microsoft",   icon: `${ORZ3}/Microsoft.png`,  proxies: proxyFirst },
-        { name: "Netflix",     icon: `${ORZ3}/Netflix.png`,    proxies: proxyFirst },
-        { name: "Spotify",     icon: `${ORZ3}/Spotify.png`,    proxies: proxyFirst },
-        { name: "TikTok",      icon: `${ORZ3}/TikTok.png`,    proxies: proxyFirst },
-        { name: "游戏",        icon: `${ORZ3}/GAME.png`,       proxies: proxyFirst },
-        { name: "GlobalMedia", icon: `${ORZ3}/Streaming.png`,  proxies: proxyFirst },
-        { name: "Speedtest",   icon: `${ORZ3}/Speedtest.png`,  proxies: directFirst },
-        { name: "Apple",       icon: `${ORZ3}/Apple.png`,      proxies: directFirst },
-        { name: "广告拦截",     icon: `${ORZ3}/Adblock.png`,    proxies: ["REJECT", "DIRECT"] },
-        { name: "国内网站",     icon: `${ORZ3}/China.png`,      proxies: directFirst },
-        { name: "Final",       icon: `${ORZ3}/Final.png`,      proxies: proxyFirst },
+        { name: "OpenAI",      icon: `${EDC_FILTER}/OpenAI.png`,    proxies: proxyFirst },
+        { name: "Anthropic",   icon: "https://raw.githubusercontent.com/cnzakii/rule_script/main/icon/claude.png", proxies: proxyFirst },
+        { name: "Gemini",      icon: "https://raw.githubusercontent.com/cnzakii/rule_script/main/icon/gemini.png", proxies: proxyFirst },
+        { name: "AI",          icon: `${EDC_FILTER}/OpenAI.png`,    proxies: proxyFirst },
+        { name: "Telegram",    icon: `${EDC_FILTER}/Telegram.png`,  proxies: proxyFirst },
+        { name: "YouTube",     icon: `${EDC_FILTER}/Youtube.png`,   proxies: proxyFirst },
+        { name: "Google",      icon: `${EDC_FILTER}/Google.png`,    proxies: proxyFirst },
+        { name: "Microsoft",   icon: `${EDC_FILTER}/Microsoft.png`, proxies: proxyFirst },
+        { name: "Netflix",     icon: `${EDC_FILTER}/Netflix.png`,   proxies: proxyFirst },
+        { name: "Spotify",     icon: `${EDC_FILTER}/Spotify.png`,   proxies: proxyFirst },
+        { name: "TikTok",      icon: `${EDC_FILTER}/Tiktok.png`,    proxies: proxyFirst },
+        { name: "游戏",        icon: `${EDC_FILTER}/Game.png`,      proxies: proxyFirst },
+        { name: "GlobalMedia", icon: `${EDC_FILTER}/GMedia.png`,    proxies: proxyFirst },
+        { name: "Speedtest",   icon: `${EDC_FILTER}/Speedtest.png`, proxies: directFirst },
+        { name: "Apple",       icon: `${EDC_FILTER}/Apple.png`,     proxies: directFirst },
+        { name: "广告拦截",     icon: `${EDC_FILTER}/AdBlock.png`,   proxies: ["REJECT", "DIRECT"] },
+        { name: "国内网站",     icon: `${EDC_FILTER}/Mainland.png`,  proxies: directFirst },
+        { name: "Final",       icon: `${EDC_FILTER}/Final.png`,     proxies: proxyFirst },
     ].map(s => ({ type: "select", ...s }));
 
     // proxy-groups
     config["proxy-groups"] = [
         // 顶层
-        { name: "代理选择", type: "select", icon: `${ORZ3}/Roundrobin.png`, proxies: [...regionNames, "手动选择", "DIRECT"] },
+        { name: "代理选择", type: "select", icon: `${EDC_FILTER}/Proxy.png`, proxies: [...regionNames, "手动选择", "DIRECT"] },
         // 节点分组
         { name: "手动选择", type: "select", icon: `${ORZ3}/Static.png`, "include-all": true },
         ...regionGroups,
