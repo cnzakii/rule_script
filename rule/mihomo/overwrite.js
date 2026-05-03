@@ -3,8 +3,10 @@
  *
  * 支持参数：
  * - minCount:     节点数量低于该值的地区归入"其他地区"（默认 0）
- * - groupType:    地区分组默认策略 select / url-test / load-balance（默认 url-test）
- * - groupOverride: 覆盖特定分组类型，格式 "香港:select,美国:load-balance"
+ * - groupType:      地区分组默认策略 select / url-test / load-balance（默认 url-test）
+ * - groupOverride:  覆盖特定分组类型，格式 "香港:select,美国:load-balance"
+ * - enableLanding:  启用落地节点 dialer-proxy（默认 false）
+ * - landingKeyword: 落地节点名称匹配正则（默认 "落地|自建|家宽|住宅"）
  */
 
 const ORZ3 = "https://gcore.jsdelivr.net/gh/Orz-3/mini@master/Color";
@@ -13,6 +15,9 @@ const EDC_COUNTRY = "https://raw.githubusercontent.com/erdongchanyo/icon/main/Po
 const VALID_GROUP_TYPES = ["select", "url-test", "load-balance"];
 const TLS_FINGERPRINT_TYPES = new Set(["vmess", "vless", "trojan", "anytls"]);
 const TEST_URL = "https://cp.cloudflare.com/generate_204";
+const LANDING_GROUP = "落地选择";
+const LANDING_FRONT_GROUP = "落地前置";
+const DEFAULT_LANDING_KEYWORD = "落地|自建|家宽|住宅";
 
 // ====== 规则集来源 ======
 const DUSTIN = "https://raw.githubusercontent.com/DustinWin/ruleset_geodata/mihomo-ruleset";
@@ -82,18 +87,21 @@ function countByRegion(proxies) {
 }
 
 /** 创建单个地区/筛选分组，type 由 override 或 defaultType 决定 */
-function makeGroup({ name, match, defaultType, overrideMap, icon, exclude = false }) {
+function makeGroup({ name, match, defaultType, overrideMap, icon, exclude = false, excludeMatch = "" }) {
     const type = overrideMap[name] || defaultType;
     const group = { name, type, "include-all": true };
     if (icon) group.icon = icon;
-    if (exclude) group["exclude-filter"] = match;
-    else group.filter = match;
+    if (exclude) group["exclude-filter"] = [match, excludeMatch].filter(Boolean).join("|");
+    else {
+        group.filter = match;
+        if (excludeMatch) group["exclude-filter"] = excludeMatch;
+    }
     if (type === "url-test") Object.assign(group, urlTestOpts());
     return group;
 }
 
 /** 构建全部地区 + 特殊筛选分组 */
-function buildRegionGroups(stats, unmatchedCount, minCount, defaultType, overrideMap) {
+function buildRegionGroups(stats, unmatchedCount, minCount, defaultType, overrideMap, excludeMatch = "") {
     const groups = [];
     const keptPatterns = [];
     let otherCount = unmatchedCount;
@@ -106,6 +114,7 @@ function buildRegionGroups(stats, unmatchedCount, minCount, defaultType, overrid
                 defaultType,
                 overrideMap,
                 icon: region.icon,
+                excludeMatch,
             }));
             keptPatterns.push(region.pattern);
             continue;
@@ -122,6 +131,7 @@ function buildRegionGroups(stats, unmatchedCount, minCount, defaultType, overrid
             overrideMap,
             icon: `${EDC_FILTER}/Outside.png`,
             exclude: keptPatterns.length > 0,
+            excludeMatch,
         }));
     }
 
@@ -328,15 +338,49 @@ function applyClientFingerprint(proxies, fingerprint = "chrome") {
     }
 }
 
+function isEnabled(value) {
+    return ["true", "1", "yes", "on"].includes(String(value || "").toLowerCase());
+}
+
+function normalizeRegexPattern(raw, fallback) {
+    const pattern = String(raw || fallback);
+    try {
+        new RegExp(pattern);
+        return pattern;
+    } catch (_) {
+        return fallback;
+    }
+}
+
+function detectLandingProxyNames(proxies, keyword) {
+    const regex = new RegExp(keyword, "i");
+    return proxies
+        .map(proxy => proxy && proxy.name)
+        .filter(name => name && regex.test(name));
+}
+
+function applyLandingDialer(proxies, landingNames) {
+    const landingSet = new Set(landingNames);
+    for (const proxy of proxies) {
+        if (!proxy || !landingSet.has(proxy.name)) continue;
+        proxy["dialer-proxy"] = LANDING_FRONT_GROUP;
+    }
+}
+
 function main(config) {
     const args = typeof $arguments !== "undefined" ? $arguments : {};
-    const minCount    = toInt(args.minCount, 0);
-    const groupType   = VALID_GROUP_TYPES.includes(args.groupType) ? args.groupType : "url-test";
-    const overrideMap = parseGroupOverride(args.groupOverride);
+    const minCount       = toInt(args.minCount, 0);
+    const groupType      = VALID_GROUP_TYPES.includes(args.groupType) ? args.groupType : "url-test";
+    const overrideMap    = parseGroupOverride(args.groupOverride);
+    const enableLanding  = isEnabled(args.enableLanding);
+    const landingKeyword = normalizeRegexPattern(args.landingKeyword, DEFAULT_LANDING_KEYWORD);
 
     const proxies = config.proxies || [];
-    const { stats, unmatchedCount } = countByRegion(proxies);
-    const regionGroups = buildRegionGroups(stats, unmatchedCount, minCount, groupType, overrideMap);
+    const landingNames = enableLanding ? detectLandingProxyNames(proxies, landingKeyword) : [];
+    const landingSet = new Set(landingNames);
+    const regionSourceProxies = landingNames.length > 0 ? proxies.filter(proxy => !landingSet.has(proxy.name)) : proxies;
+    const { stats, unmatchedCount } = countByRegion(regionSourceProxies);
+    const regionGroups = buildRegionGroups(stats, unmatchedCount, minCount, groupType, overrideMap, landingNames.length > 0 ? landingKeyword : "");
     const regionNames = regionGroups.map(g => g.name);
 
     // 内核通用优化（不含端口/外部控制器等客户端特定设置）
@@ -350,6 +394,7 @@ function main(config) {
     });
 
     applyClientFingerprint(proxies);
+    if (landingNames.length > 0) applyLandingDialer(proxies, landingNames);
 
     // DNS
     config["dns"] = clone(DNS_CONFIG);
@@ -357,8 +402,13 @@ function main(config) {
     // Sniffer
     config["sniffer"] = clone(SNIFFER_CONFIG);
 
-    const proxyFirst  = ["代理选择", ...regionNames, "手动选择", "DIRECT"];
-    const directFirst = ["DIRECT", "代理选择", ...regionNames, "手动选择"];
+    const landingOption = landingNames.length > 0 ? [LANDING_GROUP] : [];
+    const proxyFirst  = ["代理选择", ...landingOption, ...regionNames, "手动选择", "DIRECT"];
+    const directFirst = ["DIRECT", "代理选择", ...landingOption, ...regionNames, "手动选择"];
+    const landingGroups = landingNames.length > 0 ? [
+        { name: LANDING_GROUP, type: "select", proxies: landingNames },
+        { name: LANDING_FRONT_GROUP, type: "select", proxies: [...regionNames, "手动选择", "DIRECT"] },
+    ] : [];
 
     // 服务分组
     const serviceGroups = [
@@ -385,10 +435,11 @@ function main(config) {
     // proxy-groups
     config["proxy-groups"] = [
         // 顶层
-        { name: "代理选择", type: "select", icon: `${EDC_FILTER}/Proxy.png`, proxies: [...regionNames, "手动选择", "DIRECT"] },
+        { name: "代理选择", type: "select", icon: `${EDC_FILTER}/Proxy.png`, proxies: [...landingOption, ...regionNames, "手动选择", "DIRECT"] },
         // 节点分组
         { name: "手动选择", type: "select", icon: `${ORZ3}/Static.png`, "include-all": true },
         ...regionGroups,
+        ...landingGroups,
         // 服务分组
         ...serviceGroups,
     ];
