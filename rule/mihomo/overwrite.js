@@ -7,9 +7,20 @@
  * - groupOverride:  覆盖特定分组类型，格式 "香港:select,美国:load-balance"
  * - enableLanding:  启用落地节点 dialer-proxy（默认 false）
  * - landingKeyword: 落地节点名称匹配正则（默认 "落地|自建|家宽|住宅"）
+ * - nodeSourceType: 从 Sub-Store 拉取节点的来源类型 subscription / collection（默认 collection）
+ * - nodeSourceName: 从 Sub-Store 拉取节点的来源名称，例如 Mix-Landing（默认空，不拉取）
+ * - nodeMode:       replace / preserve；拉取节点后默认 replace
+ * - dnsMode:        preserve / off / custom（默认 preserve，保留官方 DNS）
+ * - snifferMode:    preserve / off / custom（默认 preserve）
+ * - coreMode:       preserve / custom（默认 preserve）
+ * - groupsMode:     custom / preserve（默认 custom）
+ * - rulesMode:      custom / preserve（默认 custom）
+ * - mediaMode:      balanced / full（默认 balanced；full 增加 Disney/Max/PrimeVideo/AppleTV）
+ * - ruleProviderProxy: 规则集下载使用的策略组（默认 代理选择）
  */
 
 const ORZ3 = "https://gcore.jsdelivr.net/gh/Orz-3/mini@master/Color";
+const LOCAL_ICON = "https://raw.githubusercontent.com/cnzakii/rule_script/main/icon";
 const EDC_FILTER = "https://raw.githubusercontent.com/erdongchanyo/icon/main/Policy-Filter";
 const EDC_COUNTRY = "https://raw.githubusercontent.com/erdongchanyo/icon/main/Policy-Country";
 const VALID_GROUP_TYPES = ["select", "url-test", "load-balance"];
@@ -250,44 +261,75 @@ const DIRECT_RULES = [
 ];
 
 // ====== 规则集提供者 ======
-function mrsProvider(url, behavior) {
-    return { type: "http", behavior, format: "mrs", interval: 86400, url };
+function mrsProvider(url, behavior, proxy = "") {
+    const provider = { type: "http", behavior, format: "mrs", interval: 86400, url };
+    if (proxy) provider.proxy = proxy;
+    return provider;
 }
 
-const ruleProviders = {
+function buildRuleProviders(ruleProviderProxy, mediaMode = "balanced") {
+    const providers = {
     // —— DustinWin（主力源）——
-    "ads":            mrsProvider(`${DUSTIN}/ads.mrs`,           "domain"),
-    "private":        mrsProvider(`${DUSTIN}/private.mrs`,       "domain"),
-    "private-ip":     mrsProvider(`${DUSTIN}/privateip.mrs`,     "ipcidr"),
-    "ai":             mrsProvider(`${DUSTIN}/ai.mrs`,            "domain"),
-    "telegram-ip":    mrsProvider(`${DUSTIN}/telegramip.mrs`,    "ipcidr"),
-    "youtube":        mrsProvider(`${DUSTIN}/youtube.mrs`,       "domain"),
-    "netflix":        mrsProvider(`${DUSTIN}/netflix.mrs`,       "domain"),
-    "netflix-ip":     mrsProvider(`${DUSTIN}/netflixip.mrs`,     "ipcidr"),
-    "spotify":        mrsProvider(`${DUSTIN}/spotify.mrs`,       "domain"),
-    "tiktok":         mrsProvider(`${DUSTIN}/tiktok.mrs`,        "domain"),
-    "games-cn":       mrsProvider(`${DUSTIN}/games-cn.mrs`,      "domain"),
-    "games":          mrsProvider(`${DUSTIN}/games.mrs`,         "domain"),
-    "media":          mrsProvider(`${DUSTIN}/media.mrs`,         "domain"),
-    "media-ip":       mrsProvider(`${DUSTIN}/mediaip.mrs`,       "ipcidr"),
-    "networktest":    mrsProvider(`${DUSTIN}/networktest.mrs`,   "domain"),
-    "google-cn":      mrsProvider(`${DUSTIN}/google-cn.mrs`,     "domain"),
-    "microsoft-cn":   mrsProvider(`${DUSTIN}/microsoft-cn.mrs`,  "domain"),
-    "apple-cn":       mrsProvider(`${DUSTIN}/apple-cn.mrs`,      "domain"),
-    "cn":             mrsProvider(`${DUSTIN}/cn.mrs`,            "domain"),
-    "cn-ip":          mrsProvider(`${DUSTIN}/cnip.mrs`,          "ipcidr"),
-    "proxy":          mrsProvider(`${DUSTIN}/proxy.mrs`,         "domain"),
-    // —— MetaCubeX（DustinWin 无单独拆分的服务）——
-    "openai":         mrsProvider(`${META_LITE}/openai.mrs`,     "domain"),
-    "anthropic":      mrsProvider(`${META_FULL}/anthropic.mrs`,  "domain"),
-    "telegram":       mrsProvider(`${META_LITE}/telegram.mrs`,   "domain"),
-    "google":         mrsProvider(`${META_LITE}/google.mrs`,     "domain"),
-    "microsoft":      mrsProvider(`${META_LITE}/microsoft.mrs`,  "domain"),
-    "apple":          mrsProvider(`${META_LITE}/apple.mrs`,      "domain"),
-};
+        "ads":             mrsProvider(`${DUSTIN}/ads.mrs`,          "domain", ruleProviderProxy),
+        "private":         mrsProvider(`${DUSTIN}/private.mrs`,      "domain", ruleProviderProxy),
+        "private-ip":      mrsProvider(`${DUSTIN}/privateip.mrs`,    "ipcidr", ruleProviderProxy),
+        "ai":              mrsProvider(`${DUSTIN}/ai.mrs`,           "domain", ruleProviderProxy),
+        "telegram-ip":     mrsProvider(`${DUSTIN}/telegramip.mrs`,   "ipcidr", ruleProviderProxy),
+        "youtube":         mrsProvider(`${DUSTIN}/youtube.mrs`,      "domain", ruleProviderProxy),
+        "netflix":         mrsProvider(`${DUSTIN}/netflix.mrs`,      "domain", ruleProviderProxy),
+        "netflix-ip":      mrsProvider(`${DUSTIN}/netflixip.mrs`,    "ipcidr", ruleProviderProxy),
+        "spotify":         mrsProvider(`${DUSTIN}/spotify.mrs`,      "domain", ruleProviderProxy),
+        "tiktok":          mrsProvider(`${DUSTIN}/tiktok.mrs`,       "domain", ruleProviderProxy),
+        "games-cn":        mrsProvider(`${DUSTIN}/games-cn.mrs`,     "domain", ruleProviderProxy),
+        "games":           mrsProvider(`${DUSTIN}/games.mrs`,        "domain", ruleProviderProxy),
+        "media":           mrsProvider(`${DUSTIN}/media.mrs`,        "domain", ruleProviderProxy),
+        "media-ip":        mrsProvider(`${DUSTIN}/mediaip.mrs`,      "ipcidr", ruleProviderProxy),
+        "networktest":     mrsProvider(`${DUSTIN}/networktest.mrs`,  "domain", ruleProviderProxy),
+        "google-cn":       mrsProvider(`${DUSTIN}/google-cn.mrs`,    "domain", ruleProviderProxy),
+        "microsoft-cn":    mrsProvider(`${DUSTIN}/microsoft-cn.mrs`, "domain", ruleProviderProxy),
+        "apple-cn":        mrsProvider(`${DUSTIN}/apple-cn.mrs`,     "domain", ruleProviderProxy),
+        "cn":              mrsProvider(`${DUSTIN}/cn.mrs`,           "domain", ruleProviderProxy),
+        "cn-ip":           mrsProvider(`${DUSTIN}/cnip.mrs`,         "ipcidr", ruleProviderProxy),
+        "proxy":           mrsProvider(`${DUSTIN}/proxy.mrs`,        "domain", ruleProviderProxy),
+        // —— MetaCubeX（DustinWin 无单独拆分的服务）——
+        "openai":          mrsProvider(`${META_LITE}/openai.mrs`,          "domain", ruleProviderProxy),
+        "anthropic":       mrsProvider(`${META_FULL}/anthropic.mrs`,       "domain", ruleProviderProxy),
+        "google-gemini":   mrsProvider(`${META_FULL}/google-gemini.mrs`,   "domain", ruleProviderProxy),
+        "telegram":        mrsProvider(`${META_LITE}/telegram.mrs`,        "domain", ruleProviderProxy),
+        "google":          mrsProvider(`${META_LITE}/google.mrs`,          "domain", ruleProviderProxy),
+        "microsoft":       mrsProvider(`${META_LITE}/microsoft.mrs`,       "domain", ruleProviderProxy),
+        "apple":           mrsProvider(`${META_LITE}/apple.mrs`,           "domain", ruleProviderProxy),
+        "github":          mrsProvider(`${META_FULL}/github.mrs`,          "domain", ruleProviderProxy),
+        "twitter":         mrsProvider(`${META_FULL}/twitter.mrs`,         "domain", ruleProviderProxy),
+        "x":               mrsProvider(`${META_FULL}/x.mrs`,               "domain", ruleProviderProxy),
+        "discord":         mrsProvider(`${META_FULL}/discord.mrs`,         "domain", ruleProviderProxy),
+        "biliintl":        mrsProvider(`${META_FULL}/biliintl.mrs`,        "domain", ruleProviderProxy),
+        "bilibili-not-cn": mrsProvider(`${META_FULL}/bilibili@!cn.mrs`,    "domain", ruleProviderProxy),
+        "bahamut":         mrsProvider(`${META_FULL}/bahamut.mrs`,         "domain", ruleProviderProxy),
+    };
+
+    if (mediaMode === "full") {
+        Object.assign(providers, {
+            "disney":     mrsProvider(`${DUSTIN}/disney.mrs`,     "domain", ruleProviderProxy),
+            "max":        mrsProvider(`${DUSTIN}/max.mrs`,        "domain", ruleProviderProxy),
+            "primevideo": mrsProvider(`${DUSTIN}/primevideo.mrs`, "domain", ruleProviderProxy),
+            "appletv":    mrsProvider(`${DUSTIN}/appletv.mrs`,    "domain", ruleProviderProxy),
+        });
+    }
+
+    return providers;
+}
 
 // ====== 规则（从上到下匹配）======
-const rules = [
+function buildRules(mediaMode = "balanced") {
+    const mediaRules = mediaMode === "full" ? [
+        "RULE-SET,disney,Disney",
+        "RULE-SET,max,Max",
+        "RULE-SET,primevideo,PrimeVideo",
+        "RULE-SET,appletv,AppleTV",
+    ] : [];
+
+    return [
     // 私有网络直连
     "RULE-SET,private,DIRECT",
     "RULE-SET,private-ip,DIRECT,no-resolve",
@@ -296,10 +338,15 @@ const rules = [
     // AI 服务（细分优先于通用）
     "RULE-SET,openai,OpenAI",
     "RULE-SET,anthropic,Anthropic",
+    "RULE-SET,google-gemini,Gemini",
     "RULE-SET,ai,AI",
     // 通讯
     "RULE-SET,telegram,Telegram",
     "RULE-SET,telegram-ip,Telegram,no-resolve",
+    "RULE-SET,github,GitHub",
+    "RULE-SET,discord,Discord",
+    "RULE-SET,twitter,Twitter",
+    "RULE-SET,x,Twitter",
     // 测速
     "RULE-SET,networktest,Speedtest",
     // 游戏（国服直连优先于代理）
@@ -311,6 +358,10 @@ const rules = [
     "RULE-SET,netflix-ip,Netflix,no-resolve",
     "RULE-SET,spotify,Spotify",
     "RULE-SET,tiktok,TikTok",
+    "RULE-SET,biliintl,Bilibili",
+    "RULE-SET,bilibili-not-cn,Bilibili",
+    "RULE-SET,bahamut,Bahamut",
+    ...mediaRules,
     "RULE-SET,media,GlobalMedia",
     "RULE-SET,media-ip,GlobalMedia,no-resolve",
     // 科技巨头（国内直连优先于代理）
@@ -327,7 +378,8 @@ const rules = [
     "RULE-SET,proxy,Final",
     // 最终兜底
     "MATCH,Final",
-];
+    ];
+}
 
 // ====== 主函数 ======
 function applyClientFingerprint(proxies, fingerprint = "chrome") {
@@ -367,15 +419,75 @@ function applyLandingDialer(proxies, landingNames) {
     }
 }
 
-function main(config) {
-    const args = typeof $arguments !== "undefined" ? $arguments : {};
+function readArgs() {
+    return {
+        ...(typeof $arguments !== "undefined" && $arguments ? $arguments : {}),
+        ...(typeof $options !== "undefined" && $options ? $options : {}),
+    };
+}
+
+function readString(args, name, fallback = "") {
+    const value = args[name];
+    if (value == null || value === "") return fallback;
+    return String(value);
+}
+
+async function loadNodeSource(args) {
+    const nodeSourceName = readString(args, "nodeSourceName", "");
+    if (!nodeSourceName) return null;
+
+    if (typeof produceArtifact !== "function") {
+        throw new Error("nodeSourceName requires Sub-Store produceArtifact");
+    }
+
+    const nodeSourceType = readString(args, "nodeSourceType", "collection");
+    return await produceArtifact({
+        type: nodeSourceType,
+        name: nodeSourceName,
+        platform: "mihomo",
+        produceType: "internal",
+        produceOpts: {
+            "delete-underscore-fields": true,
+        },
+    });
+}
+
+function applyConfigModes(config, args) {
+    const coreMode = readString(args, "coreMode", "preserve");
+    const dnsMode = readString(args, "dnsMode", "preserve");
+    const snifferMode = readString(args, "snifferMode", "preserve");
+
+    if (coreMode === "custom") {
+        Object.assign(config, {
+            "mode": "rule",
+            "log-level": "info",
+            "ipv6": false,
+            "unified-delay": true,
+            "tcp-concurrent": true,
+            "find-process-mode": "strict",
+        });
+    }
+
+    if (dnsMode === "custom") config["dns"] = clone(DNS_CONFIG);
+    else if (dnsMode === "off") delete config["dns"];
+
+    if (snifferMode === "custom") config["sniffer"] = clone(SNIFFER_CONFIG);
+    else if (snifferMode === "off") delete config["sniffer"];
+}
+
+async function main(config) {
+    config = config || {};
+    const args = readArgs();
     const minCount       = toInt(args.minCount, 0);
     const groupType      = VALID_GROUP_TYPES.includes(args.groupType) ? args.groupType : "url-test";
     const overrideMap    = parseGroupOverride(args.groupOverride);
     const enableLanding  = isEnabled(args.enableLanding);
     const landingKeyword = normalizeRegexPattern(args.landingKeyword, DEFAULT_LANDING_KEYWORD);
 
-    const proxies = config.proxies || [];
+    const sourceProxies = await loadNodeSource(args);
+    const nodeMode = readString(args, "nodeMode", sourceProxies ? "replace" : "preserve");
+    const proxies = sourceProxies && nodeMode === "replace" ? sourceProxies : (config.proxies || []);
+    config.proxies = proxies;
     const landingNames = enableLanding ? detectLandingProxyNames(proxies, landingKeyword) : [];
     const landingSet = new Set(landingNames);
     const regionSourceProxies = landingNames.length > 0 ? proxies.filter(proxy => !landingSet.has(proxy.name)) : proxies;
@@ -383,24 +495,9 @@ function main(config) {
     const regionGroups = buildRegionGroups(stats, unmatchedCount, minCount, groupType, overrideMap, landingNames.length > 0 ? landingKeyword : "");
     const regionNames = regionGroups.map(g => g.name);
 
-    // 内核通用优化（不含端口/外部控制器等客户端特定设置）
-    Object.assign(config, {
-        "mode": "rule",
-        "log-level": "info",
-        "ipv6": false,
-        "unified-delay": true,
-        "tcp-concurrent": true,
-        "find-process-mode": "strict",
-    });
-
     applyClientFingerprint(proxies);
     if (landingNames.length > 0) applyLandingDialer(proxies, landingNames);
-
-    // DNS
-    config["dns"] = clone(DNS_CONFIG);
-
-    // Sniffer
-    config["sniffer"] = clone(SNIFFER_CONFIG);
+    applyConfigModes(config, args);
 
     const landingOption = landingNames.length > 0 ? [LANDING_GROUP] : [];
     const proxyFirst  = ["代理选择", ...landingOption, ...regionNames, "手动选择", "DIRECT"];
@@ -410,19 +507,33 @@ function main(config) {
         { name: LANDING_FRONT_GROUP, type: "select", proxies: [...regionNames, "手动选择", "DIRECT"] },
     ] : [];
 
+    const mediaMode = readString(args, "mediaMode", "balanced");
+    const fullMediaGroups = mediaMode === "full" ? [
+        { name: "Disney",      icon: `${EDC_FILTER}/Disney+.png`,   proxies: proxyFirst },
+        { name: "Max",         icon: `${LOCAL_ICON}/max.png`,       proxies: proxyFirst },
+        { name: "PrimeVideo",  icon: `${EDC_FILTER}/PrimeVideo.png`, proxies: proxyFirst },
+        { name: "AppleTV",     icon: `${LOCAL_ICON}/appletv.png`,   proxies: proxyFirst },
+    ] : [];
+
     // 服务分组
     const serviceGroups = [
         { name: "OpenAI",      icon: `${EDC_FILTER}/OpenAI.png`,    proxies: proxyFirst },
-        { name: "Anthropic",   icon: "https://raw.githubusercontent.com/cnzakii/rule_script/main/icon/claude.png", proxies: proxyFirst },
-        { name: "Gemini",      icon: "https://raw.githubusercontent.com/cnzakii/rule_script/main/icon/gemini.png", proxies: proxyFirst },
+        { name: "Anthropic",   icon: `${LOCAL_ICON}/claude.png`,     proxies: proxyFirst },
+        { name: "Gemini",      icon: `${LOCAL_ICON}/gemini.png`,     proxies: proxyFirst },
         { name: "AI",          icon: `${EDC_FILTER}/OpenAI.png`,    proxies: proxyFirst },
         { name: "Telegram",    icon: `${EDC_FILTER}/Telegram.png`,  proxies: proxyFirst },
+        { name: "GitHub",      icon: `${LOCAL_ICON}/github.png`,    proxies: proxyFirst },
+        { name: "Discord",     icon: `${LOCAL_ICON}/discord.png`,   proxies: proxyFirst },
+        { name: "Twitter",     icon: `${EDC_FILTER}/Twitter.png`,   proxies: proxyFirst },
         { name: "YouTube",     icon: `${EDC_FILTER}/Youtube.png`,   proxies: proxyFirst },
         { name: "Google",      icon: `${EDC_FILTER}/Google.png`,    proxies: proxyFirst },
         { name: "Microsoft",   icon: `${EDC_FILTER}/Microsoft.png`, proxies: proxyFirst },
         { name: "Netflix",     icon: `${EDC_FILTER}/Netflix.png`,   proxies: proxyFirst },
         { name: "Spotify",     icon: `${EDC_FILTER}/Spotify.png`,   proxies: proxyFirst },
         { name: "TikTok",      icon: `${EDC_FILTER}/Tiktok.png`,    proxies: proxyFirst },
+        { name: "Bilibili",    icon: `${EDC_FILTER}/Bilibili.png`,  proxies: proxyFirst },
+        { name: "Bahamut",     icon: `${LOCAL_ICON}/bahamut.png`,   proxies: proxyFirst },
+        ...fullMediaGroups,
         { name: "游戏",        icon: `${EDC_FILTER}/Game.png`,      proxies: proxyFirst },
         { name: "GlobalMedia", icon: `${EDC_FILTER}/GMedia.png`,    proxies: proxyFirst },
         { name: "Speedtest",   icon: `${EDC_FILTER}/Speedtest.png`, proxies: directFirst },
@@ -432,21 +543,26 @@ function main(config) {
         { name: "Final",       icon: `${EDC_FILTER}/Final.png`,     proxies: proxyFirst },
     ].map(s => ({ type: "select", ...s }));
 
-    // proxy-groups
-    config["proxy-groups"] = [
-        // 顶层
-        { name: "代理选择", type: "select", icon: `${EDC_FILTER}/Proxy.png`, proxies: [...landingOption, ...regionNames, "手动选择", "DIRECT"] },
-        // 节点分组
-        { name: "手动选择", type: "select", icon: `${ORZ3}/Static.png`, "include-all": true },
-        ...regionGroups,
-        ...landingGroups,
-        // 服务分组
-        ...serviceGroups,
-    ];
+    if (readString(args, "groupsMode", "custom") === "custom") {
+        // proxy-groups
+        config["proxy-groups"] = [
+            // 顶层
+            { name: "代理选择", type: "select", icon: `${EDC_FILTER}/Proxy.png`, proxies: [...landingOption, ...regionNames, "手动选择", "DIRECT"] },
+            // 节点分组
+            { name: "手动选择", type: "select", icon: `${ORZ3}/Static.png`, "include-all": true },
+            ...regionGroups,
+            ...landingGroups,
+            // 服务分组
+            ...serviceGroups,
+        ];
+    }
 
-    // rule-providers & rules
-    config["rule-providers"] = ruleProviders;
-    config["rules"] = [...DIRECT_RULES, ...rules];
+    if (readString(args, "rulesMode", "custom") === "custom") {
+        // rule-providers & rules
+        const ruleProviderProxy = readString(args, "ruleProviderProxy", "代理选择");
+        config["rule-providers"] = buildRuleProviders(ruleProviderProxy, mediaMode);
+        config["rules"] = [...DIRECT_RULES, ...buildRules(mediaMode)];
+    }
 
     return config;
 }
