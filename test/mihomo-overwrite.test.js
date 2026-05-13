@@ -13,10 +13,16 @@ function loadScript({ argumentsValue = {}, optionsValue = {}, producedProxies = 
       context.produceArtifactRequests.push(request);
       return producedProxies;
     },
+    ProxyUtils: {
+      yaml: {
+        safeLoad: (content) => JSON.parse(content),
+        safeDump: (value) => JSON.stringify(value),
+      },
+    },
     produceArtifactRequests: [],
   };
   vm.createContext(context);
-  vm.runInContext(`${script}\nthis.__main = main;`, context);
+  vm.runInContext(`${script}\nthis.__main = main; this.__operator = operator;`, context);
   return context;
 }
 
@@ -93,10 +99,39 @@ async function testFullMediaModeAddsOptionalMedia() {
   assert.strictEqual(output["rule-providers"].max.proxy, "代理选择");
 }
 
+async function testOperatorTransformsNormalFileContent() {
+  const producedProxies = [
+    { name: "Mix SG 01", type: "ss" },
+  ];
+  const context = loadScript({
+    argumentsValue: { nodeSourceName: "Mix-Landing" },
+    producedProxies,
+  });
+  const inputConfig = {
+    dns: { enable: true, preserved: ["official-dns-placeholder"] },
+    proxies: [{ name: "Official SG 01", type: "ss" }],
+  };
+
+  const output = await context.__operator({
+    $content: JSON.stringify(inputConfig),
+    $files: [JSON.stringify(inputConfig)],
+    $options: {},
+    $file: { type: "file", name: "Mihomo" },
+  });
+  const outputConfig = JSON.parse(output.$content);
+
+  assert.deepStrictEqual(outputConfig.dns, inputConfig.dns);
+  assert.deepStrictEqual(outputConfig.proxies, producedProxies);
+  assert.ok(outputConfig["rule-providers"].github);
+  assert.ok(outputConfig.rules.includes("RULE-SET,github,GitHub"));
+  assert.strictEqual(context.produceArtifactRequests[0].name, "Mix-Landing");
+}
+
 async function main() {
   await testPreservesDnsAndReplacesNodes();
   await testCanPreserveGroupsAndRules();
   await testFullMediaModeAddsOptionalMedia();
+  await testOperatorTransformsNormalFileContent();
   console.log("mihomo overwrite tests passed");
 }
 

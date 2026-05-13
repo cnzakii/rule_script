@@ -13,12 +13,15 @@ The official profile is the source of DNS and router-sensitive runtime settings.
 - The provider announcement requires official subscription behavior and no DNS override.
 - OpenClash runs on OpenWrt, so DNS behavior can involve dnsmasq, OpenClash DNS hijack, and mihomo DNS. DNS and sniffer defaults should be conservative.
 - Mihomo docs state that `respect-rules` requires `proxy-server-nameserver`, and strongly discourage using `respect-rules` with `prefer-h3`.
+- Sub-Store `mihomoProfile` does not accept a remote official Mihomo YAML file as its base source. In the current UI it accepts `subscription`, `collection`, or `none`.
+- The current deployed Sub-Store file named `Mihomo` is a normal remote `file` with a `Script Operator`. For this path Sub-Store passes `$content` to the script, but does not automatically call `main(config)`.
 
 ## Configuration Sources
 
 1. Official Mihomo profile
    - Preserve by default: `dns`, `sniffer`, `tun`, ports, controller, profile, and other base runtime settings.
    - Do not preserve by default: `proxies`, `proxy-groups`, `rule-providers`, `rules`.
+   - Loaded by Sub-Store as a normal remote file, not as `mihomoProfile`.
 
 2. Sub-Store collection
    - Default node source: `collection/Mix-Landing`.
@@ -26,6 +29,8 @@ The official profile is the source of DNS and router-sensitive runtime settings.
    - These nodes fully replace official `proxies`.
 
 3. Repository script
+   - Exposes `operator(input)` for normal Sub-Store file processing. It parses `input.$content` as YAML, calls `main(config)`, and writes YAML back to `input.$content`.
+   - Keeps `main(config)` as the core transformation so `mihomoProfile` remains compatible if used later.
    - Generates proxy groups.
    - Generates rule providers.
    - Generates route rules.
@@ -67,6 +72,31 @@ This produces:
 ```text
 official DNS + official base runtime settings + Mix-Landing nodes + repository groups/rules
 ```
+
+## Sub-Store Entry Point
+
+The recommended Sub-Store setup is:
+
+```text
+File type: normal file
+File source: provider official full Mihomo profile URL
+Processor: Script Operator using this repository script
+Node source: collection/Mix-Landing via script parameters
+```
+
+Do not switch this file to `mihomoProfile` for the current deployment. `mihomoProfile` can call `main(config)` automatically, but it cannot use the provider official full Mihomo profile URL as the base YAML source in the current Sub-Store UI.
+
+For normal file processing the script must provide:
+
+```js
+async function operator(input) {
+  const config = ProxyUtils.yaml.safeLoad(input.$content);
+  input.$content = ProxyUtils.yaml.safeDump(await main(config));
+  return input;
+}
+```
+
+The actual implementation should keep the parser checks defensive and return the original input unchanged when no `$content` exists, so the script remains safe in non-file contexts.
 
 ## Rule Source Strategy
 

@@ -6,6 +6,8 @@
 
 **Architecture:** Keep the existing single-file Sub-Store script. Add small helper functions for argument parsing, mode handling, Sub-Store node loading, rule-provider creation, and icon mapping. Default behavior preserves official DNS/sniffer/core fields and replaces only nodes, groups, rule-providers, and rules.
 
+**Correction after source review:** The deployed Sub-Store `Mihomo` item is a normal remote file, not a `mihomoProfile`. `mihomoProfile` can call `main(config)` automatically, but it cannot use the provider official full Mihomo YAML URL as the base source in the current UI. The script must therefore expose an `operator(input)` entry point that parses `input.$content`, calls `main(config)`, and writes the transformed YAML back to `input.$content`.
+
 **Tech Stack:** JavaScript for Sub-Store/Mihomo profile scripts, Sub-Store `produceArtifact`, Mihomo YAML semantics, Node.js built-in `assert`/`vm` for local validation.
 
 ---
@@ -15,6 +17,7 @@
 - Modify: `rule/mihomo/overwrite.js`
   - Owns Sub-Store Mihomo profile transformation.
   - Adds async `main(config)`.
+  - Adds async `operator(input)` for normal file `Script Operator` execution.
   - Adds runtime switches and Mix-Landing node replacement.
   - Updates rule providers, rules, groups, and icons.
 - Create: `test/mihomo-overwrite.test.js`
@@ -111,6 +114,67 @@ git commit -m "test: add mihomo overwrite harness"
 ```
 
 If commits are not desired in this session, skip the commit and keep the file staged status visible in `git status --short`.
+
+---
+
+### Task 1A: Add Normal File Operator Coverage
+
+**Files:**
+- Modify: `test/mihomo-overwrite.test.js`
+- Modify: `rule/mihomo/overwrite.js`
+
+- [x] **Step 1: Extend the VM harness with YAML utilities**
+
+Add a small `ProxyUtils.yaml` stub to the VM context. Use JSON text as test input because JSON is valid YAML-compatible structured data for the purpose of proving the operator path.
+
+- [x] **Step 2: Add a failing test for normal Sub-Store file processing**
+
+The test should:
+
+1. Load the script and expose both `main` and `operator`.
+2. Pass an input object with `$content`, `$files`, `$options`, and `$file: { type: "file" }`.
+3. Set `nodeSourceName=Mix-Landing`.
+4. Verify `operator(input)` returns an object whose `$content` preserves official `dns`, replaces `proxies`, and contains generated `rule-providers`.
+
+Expected before implementation: FAIL because `operator` is not defined.
+
+- [x] **Step 3: Implement `operator(input)`**
+
+Add an async function after `main(config)`:
+
+```js
+function getYamlUtils() {
+    const proxyYaml = typeof ProxyUtils !== "undefined" && ProxyUtils && ProxyUtils.yaml ? ProxyUtils.yaml : null;
+    const globalYaml = typeof yaml !== "undefined" ? yaml : null;
+    const utils = proxyYaml || globalYaml;
+    if (!utils || typeof utils.safeLoad !== "function" || typeof utils.safeDump !== "function") {
+        throw new Error("Sub-Store YAML utilities are unavailable");
+    }
+    return utils;
+}
+
+async function operator(input) {
+    if (!input || typeof input !== "object" || !("$content" in input)) return input;
+    const content = input.$content == null ? "" : String(input.$content);
+    if (!content.trim()) return input;
+
+    const yamlUtils = getYamlUtils();
+    const config = yamlUtils.safeLoad(content) || {};
+    input.$content = yamlUtils.safeDump(await main(config));
+    return input;
+}
+```
+
+- [x] **Step 4: Run tests**
+
+Run:
+
+```bash
+node --check rule/mihomo/overwrite.js
+node test/mihomo-overwrite.test.js
+```
+
+Expected after implementation: PASS.
 
 ---
 

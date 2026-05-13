@@ -1,5 +1,7 @@
 /**
  * Sub-Store Mihomo 订阅转换脚本
+ * - 普通 file + Script Operator：通过 operator(input) 解析 $content
+ * - mihomoProfile：通过 main(config) 处理配置
  *
  * 支持参数：
  * - minCount:     节点数量低于该值的地区归入"其他地区"（默认 0）
@@ -565,4 +567,26 @@ async function main(config) {
     }
 
     return config;
+}
+
+function getYamlUtils() {
+    const proxyYaml = typeof ProxyUtils !== "undefined" && ProxyUtils && ProxyUtils.yaml ? ProxyUtils.yaml : null;
+    const globalYaml = typeof yaml !== "undefined" ? yaml : null;
+    const utils = proxyYaml || globalYaml;
+    if (!utils || typeof utils.safeLoad !== "function" || typeof utils.safeDump !== "function") {
+        throw new Error("Sub-Store YAML utilities are unavailable");
+    }
+    return utils;
+}
+
+async function operator(input) {
+    if (!input || typeof input !== "object" || !("$content" in input)) return input;
+
+    const content = input.$content == null ? "" : String(input.$content);
+    if (!content.trim()) return input;
+
+    const yamlUtils = getYamlUtils();
+    const config = yamlUtils.safeLoad(content) || {};
+    input.$content = yamlUtils.safeDump(await main(config));
+    return input;
 }
