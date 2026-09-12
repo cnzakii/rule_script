@@ -57,6 +57,13 @@ async function testPreservesDnsAndReplacesNodes() {
   assert.ok(output.rules.includes("RULE-SET,biliintl,Bilibili"));
   assert.ok(output.rules.includes("RULE-SET,bilibili-not-cn,Bilibili"));
   assert.ok(!output.rules.includes("RULE-SET,bilibili,Bilibili"));
+  const cnIpRule = output.rules.find(rule => rule.startsWith("RULE-SET,cn-ip,"));
+  assert.strictEqual(cnIpRule, "RULE-SET,cn-ip,国内网站");
+  assert.ok(output.rules.indexOf(cnIpRule) < output.rules.indexOf("MATCH,Final"));
+  assert.ok(output.rules.indexOf("RULE-SET,proxy,代理选择") >= 0);
+  assert.ok(output.rules.indexOf("RULE-SET,proxy,代理选择") < output.rules.indexOf(cnIpRule));
+  assert.ok(!output.rules.includes("RULE-SET,proxy,Final"));
+  assert.strictEqual(output["proxy-groups"].find(group => group.name === "Final").proxies[0], "DIRECT");
 }
 
 async function testCanPreserveGroupsAndRules() {

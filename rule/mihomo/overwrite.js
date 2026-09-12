@@ -375,9 +375,10 @@ function buildRules(mediaMode = "balanced") {
     "RULE-SET,apple,Apple",
     // 国内流量
     "RULE-SET,cn,国内网站",
-    "RULE-SET,cn-ip,国内网站,no-resolve",
-    // 代理兜底
-    "RULE-SET,proxy,Final",
+    // 已知国外域名独立于 Final，避免切换兜底时一起变为直连
+    "RULE-SET,proxy,代理选择",
+    // 解析未收录的域名，让国内 IP 兜底在 fake-ip 模式下也能生效
+    "RULE-SET,cn-ip,国内网站",
     // 最终兜底
     "MATCH,Final",
     ];
@@ -542,7 +543,7 @@ async function main(config) {
         { name: "Apple",       icon: `${EDC_FILTER}/Apple.png`,     proxies: directFirst },
         { name: "广告拦截",     icon: `${EDC_FILTER}/AdBlock.png`,   proxies: ["REJECT", "DIRECT"] },
         { name: "国内网站",     icon: `${EDC_FILTER}/Mainland.png`,  proxies: directFirst },
-        { name: "Final",       icon: `${EDC_FILTER}/Final.png`,     proxies: proxyFirst },
+        { name: "Final",       icon: `${EDC_FILTER}/Final.png`,     proxies: directFirst },
     ].map(s => ({ type: "select", ...s }));
 
     if (readString(args, "groupsMode", "custom") === "custom") {
