@@ -35,6 +35,7 @@ async function testPreservesDnsAndReplacesNodes() {
     producedProxies,
   });
   const input = {
+    hosts: { "node.example.com": "entry.example.com" },
     dns: { enable: true, preserved: ["official-dns-placeholder"] },
     sniffer: { enable: true },
     proxies: [{ name: "Official HK 01", type: "ss" }],
@@ -42,6 +43,7 @@ async function testPreservesDnsAndReplacesNodes() {
 
   const output = await context.__main(input);
 
+  assert.deepStrictEqual(output.hosts, { "node.example.com": "entry.example.com" });
   assert.deepStrictEqual(output.dns, { enable: true, preserved: ["official-dns-placeholder"] });
   assert.deepStrictEqual(output.sniffer, { enable: true });
   assert.deepStrictEqual(output.proxies, producedProxies);
@@ -115,7 +117,11 @@ async function testOperatorTransformsNormalFileContent() {
     producedProxies,
   });
   const inputConfig = {
-    dns: { enable: true, preserved: ["official-dns-placeholder"] },
+    hosts: {
+      "hk-node.example.com": "hk-entry.example.com",
+      "other-node.example.com": "other-entry.example.com",
+    },
+    dns: { enable: true, "use-hosts": true, preserved: ["official-dns-placeholder"] },
     proxies: [{ name: "Official SG 01", type: "ss" }],
   };
 
@@ -127,6 +133,7 @@ async function testOperatorTransformsNormalFileContent() {
   });
   const outputConfig = JSON.parse(output.$content);
 
+  assert.deepStrictEqual(outputConfig.hosts, inputConfig.hosts);
   assert.deepStrictEqual(outputConfig.dns, inputConfig.dns);
   assert.deepStrictEqual(outputConfig.proxies, producedProxies);
   assert.ok(outputConfig["rule-providers"].github);
